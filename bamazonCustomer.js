@@ -78,7 +78,7 @@ var salesPrompt = function (res) {
                                 }
                             ],
                         );
-                        itemQuantity.push(res[id].product_name);
+                        itemPurchased.push(res[id].product_name);
                         itemQuantity.push(answer.quantity);
                         var total = (res[id].price * answer.quantity);
                         price = price + total;

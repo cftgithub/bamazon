@@ -13,8 +13,7 @@ var connection = mysql.createConnection({
 });
 connection.connect(function (err) {
     if (err) throw err;
-    // insertRecord();
-    console.log("Connected as id: " + connection.threadId + "\n"); // Checks connection
+    console.log("Connected as id: " + connection.threadId); // Checks connection
     showProducts();
 });
 
@@ -25,7 +24,7 @@ var showProducts = function () {
             head: ['Item ID', 'Product Name', 'Department', 'Price', 'Inventory'],
             colWidths: [10, 30, 30, 20, 20]
         });
-        console.log("---------- Product List ----------")
+        console.log("\n" + "---------- Product List ----------")
         for (var i = 0; i < res.length; i++) {
             table.push([res[i].item_id, res[i].product_name, res[i].department_name, res[i].price, res[i].stock_quantity]);
         }
@@ -33,6 +32,10 @@ var showProducts = function () {
         salesPrompt(res);
     })
 }
+
+var itemPurchased = [];
+var itemQuantity = [];
+var price = 0;
 
 var salesPrompt = function (res) {
     inquirer.prompt([{
@@ -63,10 +66,7 @@ var salesPrompt = function (res) {
                     }
                 }).then(function (answer) {
                     if (res[id].stock_quantity > parseInt(answer.quantity) && parseInt(answer.quantity) > 0) {
-                        // console.log(res[id].stock_quantity);
-                        // console.log(answer.quantity);
                         var newQuantity = res[id].stock_quantity - answer.quantity;
-                        // console.log(newQuantity);
                         connection.query(
                             "UPDATE products SET ? WHERE ?",
                             [
@@ -78,19 +78,23 @@ var salesPrompt = function (res) {
                                 }
                             ],
                         );
+                        itemQuantity.push(res[id].product_name);
+                        itemQuantity.push(answer.quantity);
+                        var total = (res[id].price * answer.quantity);
+                        price = price + total;
                         console.log("Adding the following item(s) to your order:\n " + answer.quantity + " " + res[id].product_name + "(s)\n");
-                            inquirer.prompt({
-                                type: 'list',
-                                name: 'next',
-                                message: 'What would you like to do next?',
-                                choices: ["Keep shopping", "Checkout"]
-                            }).then(function(response){
-                                if(response.next == "Keep shopping"){
-                                    showProducts(res);
-                                } else if (response.next == "Checkout"){
-                                    process.exit();
-                                }
-                            })
+                        inquirer.prompt({
+                            type: 'list',
+                            name: 'next',
+                            message: 'What would you like to do next?',
+                            choices: ["Keep shopping", "Checkout"]
+                        }).then(function (response) {
+                            if (response.next == "Keep shopping") {
+                                showProducts(res);
+                            } else if (response.next == "Checkout") {
+                                checkout();
+                            }
+                        })
                     } else {
                         console.log("The quantity you selected is not valid.\n");
                         salesPrompt(res);
@@ -103,4 +107,19 @@ var salesPrompt = function (res) {
             salesPrompt(res);
         }
     })
+}
+
+var checkout = function () {
+    var orderPlaced = new Table({
+        head: ['Product Name', 'Quantity'],
+        colWidths: [30, 30]
+    });
+    console.log("\n" + "---------- Your Order ----------")
+
+    for (var i = 0; i < itemPurchased.length; i++) {
+        orderPlaced.push([itemPurchased[i], itemQuantity[i]]);
+    }
+    console.log(orderPlaced.toString());
+    console.log("Your order total is: $" + price + "\nThank you for your business!");
+    process.exit();
 }

@@ -1,9 +1,8 @@
 var mysql = require("mysql");
 var inquirer = require('inquirer');
+var keys = require('./keys.js');
 var Table = require('cli-table');
 
-var keys= require('./keys.js');
-console.log(keys);
 
 var connection = mysql.createConnection({
     host: "localhost",
@@ -15,102 +14,93 @@ var connection = mysql.createConnection({
 connection.connect(function (err) {
     if (err) throw err;
     // insertRecord();
-    console.log("Connected as id: " + connection.threadId); // Checks connection
-    sales();
-    // start();
-    // connection.end();
+    console.log("Connected as id: " + connection.threadId + "\n"); // Checks connection
+    showProducts();
 });
 
-// var start = function () {
-//     inquirer.prompt([
-//         {
-//             message: "Please enter your username.",
-//             name: "username",
-//             type: "input"
-//         }        
-//     ])
-//         .then(function () {
-//             console.log("Hello, here's a list of products available for purchase.");
-//             console.log("----------------------------------------");
-//             listProducts();
-//         })
-// }
-
-var sales = function () {
-    connection.query("SELECT * FROM products",
-        function (err, res) {
-            if (err) throw err;
-            inquirer.prompt({
-                name: "choice",
-                type: "list",
-                choices: function () {
-                    var itemsArray = [];
-                    for (var i = 0; i < res.length; i++) {
-                        // itemsArray.push("Item ID: " + res[i].item_id + " " + res[i].product_name + " " + res[i].price + res[i].stock_quantity);
-                        itemsArray.push(res[i].product_name);
-                    }
-                    return itemsArray;
-                },
-                message: "What item would you like to purchase?"
-            }).then(function (answer) {
-                for (var i = 0; i < res.length; i++) {
-                    if (res[i].product_name === answer.choice) {
-                        var itemChosen = res[i];
-                        inquirer.prompt({
-                            name: "quantity",
-                            type: "input",
-                            message: "How many items would you like to purchase?",
-                            validate: function (value) {
-                                if (isNaN(value) === false) {
-                                    return true;
-                                } else {
-                                    return false;
-                                }
-                            }
-                        }).then(function (answer) {
-                            if (itemChosen.stock_quantity > parseInt(answer.quantity)) {
-                                console.log("Your order is being processed!");
-                                console.log(itemChosen.stock_quantity);
-                                console.log(answer.quantity);
-                                var newQuantity = itemChosen.stock_quantity - answer.quantity;
-                                console.log(newQuantity);
-                                connection.query(
-                                    "UPDATE products SET ? WHERE ?",
-                                    [
-                                        {
-                                            stock_quantity: newQuantity
-                                        },
-                                        {
-                                            item_id: itemChosen.id
-                                        }
-                                    ],
-                                    );
-                            } else {
-                                console.log("The quantity you requested is not available...please specify a different amount");
-                                // sales();
-                            }
-                        })
-                    }
-                }
-            })
-        })
+var showProducts = function () {
+    connection.query("SELECT * FROM products", function (err, res) {
+        if (err) throw err;
+        var table = new Table({
+            head: ['Item ID', 'Product Name', 'Department', 'Price', 'Inventory'],
+            colWidths: [10, 30, 30, 20, 20]
+        });
+        console.log("---------- Product List ----------")
+        for (var i = 0; i < res.length; i++) {
+            table.push([res[i].item_id, res[i].product_name, res[i].department_name, res[i].price, res[i].stock_quantity]);
+        }
+        console.log(table.toString());
+        salesPrompt(res);
+    })
 }
-// function updateQuantity() {
-//     console.log("Updating...");
-//     connection.query(
-//         "UPDATE products SET ? WHERE ?",
-//         [
-//             {
-//                 stock_quantity: 70
-//             },
-//             {
-//                 item_id: 1
-//             }
-//         ],
-//         function (err, res) {
-//             if (err) throw err;
-//             console.log(res);
-//         }
-//     );
-// }
-// updateQuantity();
+
+var salesPrompt = function (res) {
+    inquirer.prompt([{
+        type: 'input',
+        name: 'choice',
+        message: 'Select the Item ID # you would like to purchase or "Q" to Quit'
+    }]).then(function (answer) {
+        var correct = false;
+        if (answer.choice.toUpperCase() == "Q") {
+            process.exit();
+        }
+        for (var i = 0; i < res.length; i++) {
+            if (res[i].item_id == answer.choice) {
+                correct = true;
+                // var productSold = answer.choice;
+                var id = i;
+                inquirer.prompt({
+                    type: 'input',
+                    name: 'quantity',
+                    message: 'How many would you like to purchase?',
+                    validate: function (value) {
+                        if (isNaN(value) == false) {
+                            return true;
+                        } else {
+                            console.log("\n" + "Please enter a numeric value.\n");
+                            return false;
+                        }
+                    }
+                }).then(function (answer) {
+                    if (res[id].stock_quantity > parseInt(answer.quantity) && parseInt(answer.quantity) > 0) {
+                        // console.log(res[id].stock_quantity);
+                        // console.log(answer.quantity);
+                        var newQuantity = res[id].stock_quantity - answer.quantity;
+                        // console.log(newQuantity);
+                        connection.query(
+                            "UPDATE products SET ? WHERE ?",
+                            [
+                                {
+                                    stock_quantity: newQuantity
+                                },
+                                {
+                                    item_id: res[id].item_id
+                                }
+                            ],
+                        );
+                        console.log("Adding the following item(s) to your order:\n " + answer.quantity + " " + res[id].product_name + "(s)\n");
+                            inquirer.prompt({
+                                type: 'list',
+                                name: 'next',
+                                message: 'What would you like to do next?',
+                                choices: ["Keep shopping", "Checkout"]
+                            }).then(function(response){
+                                if(response.next == "Keep shopping"){
+                                    showProducts(res);
+                                } else if (response.next == "Checkout"){
+                                    process.exit();
+                                }
+                            })
+                    } else {
+                        console.log("The quantity you selected is not valid.\n");
+                        salesPrompt(res);
+                    }
+                })
+            }
+        }
+        if (i == res.length && correct == false) {
+            console.log("Entry is not valid!\n");
+            salesPrompt(res);
+        }
+    })
+}

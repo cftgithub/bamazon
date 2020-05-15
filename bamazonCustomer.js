@@ -45,7 +45,8 @@ var salesPrompt = function (res) {
     }]).then(function (answer) {
         var correct = false;
         if (answer.choice.toUpperCase() == "Q") {
-            process.exit();
+            // process.exit();
+            checkout();
         }
         for (var i = 0; i < res.length; i++) {
             if (res[i].item_id == answer.choice) {
